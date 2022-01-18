@@ -1,25 +1,79 @@
 open Base
 
-let is_number ch = Char.to_int '0' <= ch && ch <= Char.to_int '9'
+(* Whether a character is a number or not. *)
+let is_number ch = Char.('0' <= ch && ch <= '9')
+
+(* Whether a character is a letter or not. *)
+let is_letter ch = Char.(('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ch = '_')
+
+(* Start tokenizing from str.[idx], and return (Token.t, the last index of the token). *)
+let rec step str idx acc =
+  if String.length str <= idx then (Some Token.Eof, idx)
+  else
+    let single token = (Some token, idx) in
+    let double token = (Some token, idx + 1) in
+
+    let make_integer s =
+      let num = Int.of_string s in
+      Token.Integer num
+    in
+
+    let make_str_token = function
+      | "true" -> Token.True
+      | "false" -> Token.False
+      | _ as s -> failwith (Printf.sprintf "Unknown string %s" s)
+    in
+
+    let ch = str.[idx] in
+    if String.length str - 1 = idx then
+      (* Last index of str. *)
+      if is_number ch then single (make_integer (acc ^ Char.escaped ch))
+      else if is_letter ch then single (make_str_token (acc ^ Char.escaped ch))
+      else
+        match ch with
+        | '+' -> single Token.Plus
+        | '-' -> single Token.Minus
+        | '*' -> single Token.Asterisk
+        | '(' -> single Token.Lparen
+        | ')' -> single Token.Rparen
+        | '!' -> single Token.Bang
+        | '=' -> single Token.Equal
+        | '~' -> single Token.Not
+        | '>' -> single Token.Greater
+        | '<' -> single Token.Less
+        | ' ' -> (None, idx)
+        | _ -> failwith ""
+    else
+      (* Next character exists. *)
+      let next = str.[idx + 1] in
+      if is_number ch then
+        let next_acc = acc ^ Char.escaped ch in
+        if is_number next then step str (idx + 1) next_acc else single (make_integer next_acc)
+      else if is_letter ch then
+        let next_acc = acc ^ Char.escaped ch in
+        if is_letter next then step str (idx + 1) next_acc else single (make_str_token next_acc)
+      else
+        match (ch, next) with
+        | '+', _ -> single Token.Plus
+        | '-', _ -> single Token.Minus
+        | '*', _ -> single Token.Asterisk
+        | '(', _ -> single Token.Lparen
+        | ')', _ -> single Token.Rparen
+        | '!', _ -> single Token.Bang
+        | '=', _ -> single Token.Equal
+        | '~', _ -> single Token.Not
+        | '>', _ -> single Token.Greater
+        | '<', '>' -> double Token.NotEqual
+        | '<', _ -> single Token.Less
+        | ' ', _ -> (None, idx)
+        | (_ as c1), (_ as c2) -> failwith (Printf.sprintf "Unknown char %c, %c" c1 c2)
 
 let tokenize str =
-  let rec step str idx acc =
-    let open Token in
-    let integer_of_acc () = Integer (Int.of_string acc) in
-
-    if String.length str <= idx then
-      if String.is_empty acc then [] else [ integer_of_acc () ]
-    else
-      let ch = str.[idx] in
-      if is_number (Char.to_int ch) then
-        step str (idx + 1) (acc ^ Char.escaped ch)
-      else
-        let num =
-          match String.is_empty acc with
-          | true -> None
-          | false -> Some (integer_of_acc ())
-        in
-        let tok = match ch with ' ' -> None | _ -> Some (Token.of_char ch) in
-        List.filter_opt [ num; tok ] @ step str (idx + 1) ""
+  let rec sub idx =
+    let tok, last_idx = step str idx "" in
+    match tok with
+    | None -> sub (last_idx + 1) (* Ignore whitespace. *)
+    | Some Token.Eof -> []
+    | Some tok -> tok :: sub (last_idx + 1)
   in
-  step str 0 ""
+  sub 0

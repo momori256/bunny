@@ -12,16 +12,48 @@ let test_lexer =
     { input; expected; f = Lexer.tokenize; equal = List.equal Token.equal }
   in
 
-  let single_tok = make "+-++-" Token.[ Plus; Minus; Plus; Plus; Minus ] in
+  let single_tok =
+    make "+-*()!=>~" Token.[ Plus; Minus; Asterisk; Lparen; Rparen; Bang; Equal; Greater; Not ]
+  in
   let single_int = make "12" Token.[ Integer 12 ] in
-  let mix_tok_int = make "314+15" Token.[ Integer 314; Plus; Integer 15 ] in
-  let whitespace_paren =
-    make "  9 + (26 - 53)  "
-      Token.[ Integer 9; Plus; Lparen; Integer 26; Minus; Integer 53; Rparen ]
+  let single_true_false = make "true false" Token.[ True; False ] in
+
+  let double_tok_1 = make "314<>15" Token.[ Integer 314; NotEqual; Integer 15 ] in
+  let double_tok_2 = make "!<><" Token.[ Bang; NotEqual; Less ] in
+
+  let whitespace_included_1 =
+    make "  ~ ( 99 <>  100  ) <> ( 4  > 1)  "
+      [
+        Not;
+        Lparen;
+        Integer 99;
+        NotEqual;
+        Integer 100;
+        Rparen;
+        NotEqual;
+        Lparen;
+        Integer 4;
+        Greater;
+        Integer 1;
+        Rparen;
+      ]
+  in
+  let whitespace_included_2 =
+    make " (5 = 5) <> ~false"
+      Token.[ Lparen; Integer 5; Equal; Integer 5; Rparen; NotEqual; Not; False ]
   in
 
   let res =
-    test [ single_tok; single_int; mix_tok_int; whitespace_paren ]
+    test
+      [
+        single_tok;
+        single_int;
+        single_true_false;
+        double_tok_1;
+        double_tok_2;
+        whitespace_included_1;
+        whitespace_included_2;
+      ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;
            acc && res)
@@ -34,14 +66,21 @@ let text_parser =
   let int_literal = make (Lexer.tokenize "12") "12" in
   let prefix_minus = make (Lexer.tokenize "-123") "(-123)" in
   let prefix_plus = make (Lexer.tokenize "+123") "123" in
+  let prefix_not = make (Lexer.tokenize "~true") "(~true)" in
 
   let infix_plus_1 = make (Lexer.tokenize "19 + 21") "(19 + 21)" in
   let infix_plus_2 = make (Lexer.tokenize "411 + 9 + 37") "((411 + 9) + 37)" in
   let infix_with_prefix = make (Lexer.tokenize "3 + 4 + -5") "((3 + 4) + (-5))" in
   let infix_product_1 = make (Lexer.tokenize "3 + 5 * 7") "(3 + (5 * 7))" in
+  let infix_less = make (Lexer.tokenize "5 < 3") "(5 < 3)" in
+  let infix_greater_1 = make (Lexer.tokenize "5 > 3") "(5 > 3)" in
+  let infix_greater_2 = make (Lexer.tokenize "1 + 2 > 3 + 4") "((1 + 2) > (3 + 4))" in
+  let infix_equal = make (Lexer.tokenize "5 = 3") "(5 = 3)" in
+  let infix_notequal = make (Lexer.tokenize "~true <> ~false") "((~true) <> (~false))" in
 
   let group_1 = make (Lexer.tokenize "(3 + 5) + 7") "((3 + 5) + 7)" in
   let group_2 = make (Lexer.tokenize "(3 + 5) * -(7 + 9)") "((3 + 5) * (-(7 + 9)))" in
+  let group_3 = make (Lexer.tokenize "5 + 3 <> 2 * 4") "((5 + 3) <> (2 * 4))" in
 
   let res =
     test
@@ -49,12 +88,19 @@ let text_parser =
         int_literal;
         prefix_minus;
         prefix_plus;
+        prefix_not;
         infix_plus_1;
         infix_plus_2;
         infix_with_prefix;
         infix_product_1;
+        infix_less;
+        infix_greater_1;
+        infix_greater_2;
+        infix_equal;
+        infix_notequal;
         group_1;
         group_2;
+        group_3;
       ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;
@@ -63,15 +109,37 @@ let text_parser =
   printf "test_parser: %s\n" (if res then "OK" else "Failed")
 
 let text_evaluator =
-  let make input expected = { input; expected; f = Evaluator.eval; equal = Int.equal } in
+  let make input expected = { input; expected; f = Evaluator.eval_string; equal = String.equal } in
 
-  let int_literal = make (Parser.parse (Lexer.tokenize "12")) 12 in
-  let prefix_minus = make (Parser.parse (Lexer.tokenize "123 + 54")) (123 + 54) in
-  let prefix_plus = make (Parser.parse (Lexer.tokenize "-123 * 99")) (-123 * 99) in
-  let group_1 = make (Parser.parse (Lexer.tokenize "(3 + 5) * -(7 + 9)")) ((3 + 5) * -(7 + 9)) in
+  let int_literal = make (Parser.parse (Lexer.tokenize "12")) (Int.to_string 12) in
+  let bool_literal = make (Parser.parse (Lexer.tokenize "true")) (Bool.to_string true) in
+  let prefix_minus = make (Parser.parse (Lexer.tokenize "123 + 54")) (Int.to_string (123 + 54)) in
+  let prefix_plus = make (Parser.parse (Lexer.tokenize "-123 * 99")) (Int.to_string (-123 * 99)) in
+  let prefix_not =
+    make
+      (Parser.parse (Lexer.tokenize "~true <> (3 = 5)"))
+      (Bool.to_string (Bool.( <> ) (not true) (3 = 5)))
+  in
+  let compare_1 = make (Parser.parse (Lexer.tokenize "12 < 56")) (Bool.to_string (12 < 56)) in
+  let compare_2 =
+    make (Parser.parse (Lexer.tokenize "1 + 2 > 3 + 4")) (Bool.to_string (1 + 2 > 3 + 4))
+  in
+  let group_1 =
+    make (Parser.parse (Lexer.tokenize "(3 + 5) * -(7 + 9)")) (Int.to_string ((3 + 5) * -(7 + 9)))
+  in
 
   let res =
-    test [ int_literal; prefix_minus; prefix_plus; group_1 ]
+    test
+      [
+        int_literal;
+        bool_literal;
+        prefix_minus;
+        prefix_plus;
+        prefix_not;
+        compare_1;
+        compare_2;
+        group_1;
+      ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;
            acc && res)

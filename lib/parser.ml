@@ -1,18 +1,23 @@
 open Base
 
-type operation = Lowest | Sum | Product | Prefix | Group
+type operation = Lowest | Compare | Sum | Product | Prefix | Group
 
 let priority_of_operation = function
   | Lowest -> 0
-  | Sum -> 1
-  | Product -> 2
-  | Prefix -> 3
-  | Group -> 4
+  | Compare -> 1
+  | Sum -> 2
+  | Product -> 3
+  | Prefix -> 4
+  | Group -> 5
 
 let priority_of_token token =
   let infix_op_of_token token =
     let open Token in
-    match token with Plus | Minus -> Sum | Asterisk -> Product | _ -> Lowest
+    match token with
+    | Less | Greater | Equal | NotEqual -> Compare
+    | Plus | Minus -> Sum
+    | Asterisk -> Product
+    | _ -> Lowest
   in
   let op = infix_op_of_token token in
   priority_of_operation op
@@ -22,17 +27,35 @@ let rec parse_prefix_int tokens idx =
   | Token.Integer x -> (Expression.IntLiteral x, idx)
   | _ -> failwith "Expected: Integer"
 
+and parse_prefix_true tokens idx =
+  match List.nth_exn tokens idx with
+  | Token.True -> (Expression.BoolLiteral true, idx)
+  | _ -> failwith "Expected: true"
+
+and parse_prefix_false tokens idx =
+  match List.nth_exn tokens idx with
+  | Token.False -> (Expression.BoolLiteral false, idx)
+  | _ -> failwith "Expected: false"
+
 and parse_prefix_plus tokens idx =
   match List.nth_exn tokens idx with
-  | Token.Plus -> parse_expr tokens (idx + 1) (priority_of_operation Sum) (* ingore prefix plus *)
+  | Token.Plus ->
+      parse_expr tokens (idx + 1) (priority_of_operation Lowest) (* ingore prefix plus *)
   | _ -> failwith "Expected: Plus"
 
 and parse_prefix_minus tokens idx =
   match List.nth_exn tokens idx with
   | Token.Minus ->
-      let expr, last_idx = parse_expr tokens (idx + 1) (priority_of_operation Sum) in
+      let expr, last_idx = parse_expr tokens (idx + 1) (priority_of_operation Prefix) in
       (Expression.PrefixExpr (Token.Minus, expr), last_idx)
   | _ -> failwith "Expected: Minus"
+
+and parse_prefix_not tokens idx =
+  match List.nth_exn tokens idx with
+  | Token.Not ->
+      let expr, last_idx = parse_expr tokens (idx + 1) (priority_of_operation Prefix) in
+      (Expression.PrefixExpr (Token.Not, expr), last_idx)
+  | _ -> failwith "Expected: Not"
 
 and parse_prefix_lparen tokens idx =
   match List.nth_exn tokens idx with
@@ -47,8 +70,11 @@ and get_prefix_fn token =
   | Token.Integer _ -> parse_prefix_int
   | Token.Plus -> parse_prefix_plus
   | Token.Minus -> parse_prefix_minus
+  | Token.Not -> parse_prefix_not
   | Token.Lparen -> parse_prefix_lparen
-  | Token.Asterisk | Token.Rparen | Token.Illegal ->
+  | Token.True -> parse_prefix_true
+  | Token.False -> parse_prefix_false
+  | _ ->
       failwith (Printf.sprintf "Prefix function is not implemented for %s" (Token.to_string token))
 
 and parse_infix_expr tokens idx left_expr =

@@ -14,11 +14,13 @@ let rec repl () =
           let tokens = Lexer.tokenize line in
           let expr = Parser.parse tokens in
           let result = Evaluator.eval expr in
-          let _ = printf "%d\n" result in
+          let _ = printf "%s\n" (Value.to_string result) in
           repl ()
         with _ -> printf "Invalid expression.\n")
 
-let print_msg () = printf "To exit from REPL, type \"exit\" or \"quit\".\n"
+let print_msg () =
+  printf "Welcome to bunny REPL.\n";
+  printf "To exit, type \"exit\" or \"quit\".\n"
 
 let () =
   let _ = print_msg () in
