@@ -84,4 +84,6 @@ and parse_expr tokens idx pri =
 
 let parse tokens =
   let expr, _ = parse_expr tokens 0 (priority_of_operation Lowest) in
-  Expression.to_string expr
+  expr
+
+let parse_string tokens = Expression.to_string (parse tokens)
