@@ -43,6 +43,28 @@ let test_lexer =
       Token.[ Lparen; Integer 5; Equal; Integer 5; Rparen; NotEqual; Not; False ]
   in
 
+  let if_1 =
+    make "if (true) { 4 + 3 } else { 2 * 7 }"
+      Token.
+        [
+          If;
+          Lparen;
+          True;
+          Rparen;
+          Lbrace;
+          Integer 4;
+          Plus;
+          Integer 3;
+          Rbrace;
+          Else;
+          Lbrace;
+          Integer 2;
+          Asterisk;
+          Integer 7;
+          Rbrace;
+        ]
+  in
+
   let res =
     test
       [
@@ -53,6 +75,7 @@ let test_lexer =
         double_tok_2;
         whitespace_included_1;
         whitespace_included_2;
+        if_1;
       ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;
@@ -82,6 +105,17 @@ let text_parser =
   let group_2 = make (Lexer.tokenize "(3 + 5) * -(7 + 9)") "((3 + 5) * (-(7 + 9)))" in
   let group_3 = make (Lexer.tokenize "5 + 3 <> 2 * 4") "((5 + 3) <> (2 * 4))" in
 
+  let if_1 = make (Lexer.tokenize "if (true) { 1 } else { 2 }") "(if (true) then (1) else (2))" in
+  let if_2 =
+    make
+      (Lexer.tokenize "if (true) { 4 + 3 } else { 2 * 7 }")
+      "(if (true) then ((4 + 3)) else ((2 * 7)))"
+  in
+  let if_3 =
+    make
+      (Lexer.tokenize "if (true) { if (false) { 1 } else { 2 } } else { 3 }")
+      "(if (true) then ((if (false) then (1) else (2))) else (3))"
+  in
   let res =
     test
       [
@@ -101,6 +135,9 @@ let text_parser =
         group_1;
         group_2;
         group_3;
+        if_1;
+        if_2;
+        if_3;
       ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;
@@ -128,6 +165,17 @@ let text_evaluator =
     make (Parser.parse (Lexer.tokenize "(3 + 5) * -(7 + 9)")) (Int.to_string ((3 + 5) * -(7 + 9)))
   in
 
+  let if_1 =
+    make
+      (Parser.parse (Lexer.tokenize "if (true) { 1 } else { 2 }"))
+      (Int.to_string (if true then 1 else 2))
+  in
+  let if_2 =
+    make
+      (Parser.parse (Lexer.tokenize "if (2 > 3) { 1 } else { if (1 = 1) { 2 } else { 3 } }"))
+      (Int.to_string (if 2 > 3 then 1 else if 1 = 1 then 2 else 3))
+  in
+
   let res =
     test
       [
@@ -139,6 +187,8 @@ let text_evaluator =
         compare_1;
         compare_2;
         group_1;
+        if_1;
+        if_2;
       ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;

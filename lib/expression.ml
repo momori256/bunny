@@ -7,6 +7,7 @@ type t =
   | BoolLiteral of bool
   | PrefixExpr of operator * t
   | InfixExpr of operator * t * t
+  | IfExpr of t * t * t
 (* | SuffixExpr of operator * expression *)
 
 let rec equal t1 t2 =
@@ -27,3 +28,8 @@ let rec to_string = function
       let expr1 = to_string expr1 in
       let expr2 = to_string expr2 in
       Printf.sprintf "(%s %s %s)" expr1 op expr2
+  | IfExpr (cond, cons, alt) ->
+      let cond = to_string cond in
+      let conq = to_string cons in
+      let alt = to_string alt in
+      Printf.sprintf "(if (%s) then (%s) else (%s))" cond conq alt

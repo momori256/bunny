@@ -30,5 +30,9 @@ let rec eval expr =
       | Token.NotEqual, Integer x1, Integer x2 -> Boolean (x1 <> x2)
       | Token.NotEqual, Boolean b1, Boolean b2 -> Boolean (not (Bool.equal b1 b2))
       | _ -> failwith (Printf.sprintf "Illegal infix expression (%s)" (Expression.to_string expr)))
+  | IfExpr (cond, conq, alt) -> (
+      match eval cond with
+      | Value.Boolean b -> if b then eval conq else eval alt
+      | _ -> failwith "condition must be boolean")
 
 let eval_string expr = Value.to_string (eval expr)

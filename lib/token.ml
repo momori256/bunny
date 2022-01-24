@@ -5,6 +5,8 @@ type t =
   | Asterisk
   | Lparen
   | Rparen
+  | Lbrace
+  | Rbrace
   | Bang
   | Equal
   | NotEqual
@@ -13,6 +15,8 @@ type t =
   | Not
   | True
   | False
+  | If
+  | Else
   | Eof
   | Illegal
 
@@ -23,6 +27,8 @@ let to_string = function
   | Asterisk -> "*"
   | Lparen -> "("
   | Rparen -> ")"
+  | Lbrace -> "{"
+  | Rbrace -> "}"
   | Bang -> "!"
   | Equal -> "="
   | NotEqual -> "<>"
@@ -31,6 +37,8 @@ let to_string = function
   | Not -> "~"
   | True -> "true"
   | False -> "false"
+  | If -> "if"
+  | Else -> "else"
   | Eof -> "EOF"
   | Illegal -> "ILLEGAL"
 

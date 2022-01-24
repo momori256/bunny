@@ -21,6 +21,8 @@ let rec step str idx acc =
     let make_str_token = function
       | "true" -> Token.True
       | "false" -> Token.False
+      | "if" -> Token.If
+      | "else" -> Token.Else
       | _ as s -> failwith (Printf.sprintf "Unknown string %s" s)
     in
 
@@ -36,6 +38,8 @@ let rec step str idx acc =
         | '*' -> single Token.Asterisk
         | '(' -> single Token.Lparen
         | ')' -> single Token.Rparen
+        | '{' -> single Token.Lbrace
+        | '}' -> single Token.Rbrace
         | '!' -> single Token.Bang
         | '=' -> single Token.Equal
         | '~' -> single Token.Not
@@ -59,6 +63,8 @@ let rec step str idx acc =
         | '*', _ -> single Token.Asterisk
         | '(', _ -> single Token.Lparen
         | ')', _ -> single Token.Rparen
+        | '{', _ -> single Token.Lbrace
+        | '}', _ -> single Token.Rbrace
         | '!', _ -> single Token.Bang
         | '=', _ -> single Token.Equal
         | '~', _ -> single Token.Not
