@@ -65,6 +65,46 @@ let test_lexer =
         ]
   in
 
+  let fun_1 =
+    make "fun (x, y) { x + y }"
+      Token.
+        [
+          Fun;
+          Lparen;
+          Ident "x";
+          Comma;
+          Ident "y";
+          Rparen;
+          Lbrace;
+          Ident "x";
+          Plus;
+          Ident "y";
+          Rbrace;
+        ]
+  in
+
+  let ident_1 =
+    make "3~91xyz+abc" Token.[ Integer 3; Not; Integer 91; Ident "xyz"; Plus; Ident "abc" ]
+  in
+  let call_1 =
+    make "fun (x) { x + 2 } (5)"
+      Token.
+        [
+          Fun;
+          Lparen;
+          Ident "x";
+          Rparen;
+          Lbrace;
+          Ident "x";
+          Plus;
+          Integer 2;
+          Rbrace;
+          Lparen;
+          Integer 5;
+          Rparen;
+        ]
+  in
+
   let res =
     test
       [
@@ -76,6 +116,9 @@ let test_lexer =
         whitespace_included_1;
         whitespace_included_2;
         if_1;
+        fun_1;
+        ident_1;
+        call_1;
       ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;
@@ -116,6 +159,16 @@ let text_parser =
       (Lexer.tokenize "if (true) { if (false) { 1 } else { 2 } } else { 3 }")
       "(if (true) then ((if (false) then (1) else (2))) else (3))"
   in
+
+  let fun_1 = make (Lexer.tokenize "fun (x, y) { x + y }") "(fun (x, y) { (x + y) })" in
+  let fun_2 =
+    make
+      (Lexer.tokenize "fun () { ~fun (c, d) { c <> d } }")
+      "(fun () { (~(fun (c, d) { (c <> d) })) })"
+  in
+
+  let ident = make (Lexer.tokenize "xyz * a + b") "((xyz * a) + b)" in
+  let call_1 = make (Lexer.tokenize "fun (x) { x + 2 } (5)") "((fun (x) { (x + 2) }) (5))" in
   let res =
     test
       [
@@ -138,6 +191,10 @@ let text_parser =
         if_1;
         if_2;
         if_3;
+        fun_1;
+        fun_2;
+        ident;
+        call_1;
       ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;
@@ -176,6 +233,37 @@ let text_evaluator =
       (Int.to_string (if 2 > 3 then 1 else if 1 = 1 then 2 else 3))
   in
 
+  let fun_1 =
+    make (Parser.parse (Lexer.tokenize "fun (x, y) { x + y }")) "(fun (x, y) { (x + y) })"
+  in
+  let fun_2 =
+    make
+      (Parser.parse (Lexer.tokenize "fun () { ~fun (c, d) { c <> d } }"))
+      "(fun () { (~(fun (c, d) { (c <> d) })) })"
+  in
+
+  let call_1 =
+    make
+      (Parser.parse (Lexer.tokenize "fun (x) { x + 2 } (5)"))
+      (let x = 5 in
+       Int.to_string (x + 2))
+  in
+  let call_2 =
+    make
+      (Parser.parse
+         (Lexer.tokenize
+            "fun (x, y) { if (x) { y * 2 } else { y - 2 } } (true, if (false) { 5 } else { 10 })"))
+      (let x = true in
+       let y = if false then 5 else 10 in
+       Int.to_string (if x then y * 2 else y - 2))
+  in
+  let call_3 =
+    make
+      (Parser.parse (Lexer.tokenize "fun (f) { f(f(f(7))) } (fun (x) { x * x })"))
+      (let f x = x * x in
+       Int.to_string (f (f (f 7))))
+  in
+
   let res =
     test
       [
@@ -189,6 +277,11 @@ let text_evaluator =
         group_1;
         if_1;
         if_2;
+        fun_1;
+        fun_2;
+        call_1;
+        call_2;
+        call_3;
       ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;

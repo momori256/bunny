@@ -8,6 +8,9 @@ type t =
   | PrefixExpr of operator * t
   | InfixExpr of operator * t * t
   | IfExpr of t * t * t
+  | IdentExpr of string
+  | FunExpr of string list * t
+  | CallExpr of t * t list
 (* | SuffixExpr of operator * expression *)
 
 let rec equal t1 t2 =
@@ -33,3 +36,12 @@ let rec to_string = function
       let conq = to_string cons in
       let alt = to_string alt in
       Printf.sprintf "(if (%s) then (%s) else (%s))" cond conq alt
+  | IdentExpr s -> s
+  | FunExpr (params, body) ->
+      let params = String.concat params ~sep:", " in
+      let body = to_string body in
+      Printf.sprintf "(fun (%s) { %s })" params body
+  | CallExpr (fun_expr, args) ->
+      let fun_expr = to_string fun_expr in
+      let args = String.concat (List.map args ~f:to_string) ~sep:", " in
+      Printf.sprintf "(%s (%s))" fun_expr args

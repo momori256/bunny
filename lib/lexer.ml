@@ -23,7 +23,8 @@ let rec step str idx acc =
       | "false" -> Token.False
       | "if" -> Token.If
       | "else" -> Token.Else
-      | _ as s -> failwith (Printf.sprintf "Unknown string %s" s)
+      | "fun" -> Token.Fun
+      | _ as s -> Token.Ident s
     in
 
     let ch = str.[idx] in
@@ -43,6 +44,7 @@ let rec step str idx acc =
         | '!' -> single Token.Bang
         | '=' -> single Token.Equal
         | '~' -> single Token.Not
+        | ',' -> single Token.Comma
         | '>' -> single Token.Greater
         | '<' -> single Token.Less
         | ' ' -> (None, idx)
@@ -68,11 +70,12 @@ let rec step str idx acc =
         | '!', _ -> single Token.Bang
         | '=', _ -> single Token.Equal
         | '~', _ -> single Token.Not
+        | ',', _ -> single Token.Comma
         | '>', _ -> single Token.Greater
         | '<', '>' -> double Token.NotEqual
         | '<', _ -> single Token.Less
         | ' ', _ -> (None, idx)
-        | (_ as c1), (_ as c2) -> failwith (Printf.sprintf "Unknown char %c, %c" c1 c2)
+        | (_ as c1), (_ as c2) -> failwith (Printf.sprintf "Unknown char '%c', '%c'" c1 c2)
 
 let tokenize str =
   let rec sub idx =

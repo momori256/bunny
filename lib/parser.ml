@@ -27,6 +27,18 @@ let rec parse_prefix_int tokens idx =
   | Token.Integer x -> (Expression.IntLiteral x, idx)
   | _ -> failwith "Expected: Integer"
 
+and parse_prefix_ident tokens idx =
+  match List.nth_exn tokens idx with
+  | Token.Ident s -> (
+      let ident_expr = Expression.IdentExpr s in
+      match List.nth tokens (idx + 1) with
+      | Some Token.Lparen ->
+          let args, args_idx = parse_args tokens (idx + 2) in
+          let _ = verify_token tokens args_idx Token.Rparen "<fun-arguments> ends with" in
+          (Expression.CallExpr (ident_expr, args), args_idx)
+      | _ -> (ident_expr, idx))
+  | _ -> failwith "Expected: Ident"
+
 and parse_prefix_true tokens idx =
   match List.nth_exn tokens idx with
   | Token.True -> (Expression.BoolLiteral true, idx)
@@ -73,25 +85,72 @@ and verify_token tokens idx expected_tok msg =
 
 and parse_prefix_if tokens idx =
   (* if (condition) { consequence } else { alternative } *)
-  let _ = verify_token tokens idx Token.If "if expression begins with" in
-  let _ = verify_token tokens (idx + 1) Token.Lparen "condition begins with" in
+  let _ = verify_token tokens idx Token.If "<if> begins with" in
+  let _ = verify_token tokens (idx + 1) Token.Lparen "<if-condition> begins with" in
 
   (* condition *)
   let cond_expr, cond_idx = parse_expr tokens (idx + 2) (priority_of_operation Lowest) in
-  let _ = verify_token tokens (cond_idx + 1) Token.Rparen "condition ends with" in
-  let _ = verify_token tokens (cond_idx + 2) Token.Lbrace "consequence begins with" in
+  let _ = verify_token tokens (cond_idx + 1) Token.Rparen "<if-condition> ends with" in
+  let _ = verify_token tokens (cond_idx + 2) Token.Lbrace "<if-consequence> begins with" in
 
   (* consequence *)
   let conq_expr, conq_idx = parse_expr tokens (cond_idx + 3) (priority_of_operation Lowest) in
-  let _ = verify_token tokens (conq_idx + 1) Token.Rbrace "consequence ends with" in
-  let _ = verify_token tokens (conq_idx + 2) Token.Else "if expression has else" in
-  let _ = verify_token tokens (conq_idx + 3) Token.Lbrace "alternative begins with" in
+  let _ = verify_token tokens (conq_idx + 1) Token.Rbrace "<if-consequence> ends with" in
+  let _ = verify_token tokens (conq_idx + 2) Token.Else "<if> has else" in
+  let _ = verify_token tokens (conq_idx + 3) Token.Lbrace "<if-alternative> begins with" in
 
   (* alternative *)
   let alt_expr, alt_idx = parse_expr tokens (conq_idx + 4) (priority_of_operation Lowest) in
-  let _ = verify_token tokens (alt_idx + 1) Token.Rbrace "alternative ends with" in
+  let _ = verify_token tokens (alt_idx + 1) Token.Rbrace "<if-alternative> ends with" in
 
   (Expression.IfExpr (cond_expr, conq_expr, alt_expr), alt_idx + 1)
+
+and parse_args tokens idx =
+  let rec sub cur_idx acc =
+    let tok = List.nth_exn tokens cur_idx in
+    match tok with
+    | Token.Comma -> sub (cur_idx + 1) acc
+    | Token.Rparen -> (acc, cur_idx)
+    | _ ->
+        let arg, arg_idx = parse_expr tokens cur_idx (priority_of_operation Lowest) in
+        sub (arg_idx + 1) (arg :: acc)
+  in
+  let args, last_idx = sub idx [] in
+  (List.rev args, last_idx)
+
+and parse_prefix_fun tokens idx =
+  (* fun (parameters) { body } *)
+  let _ = verify_token tokens idx Token.Fun "<fun> begins with" in
+  let _ = verify_token tokens (idx + 1) Token.Lparen "<fun-parameters> begins with" in
+
+  (* parameters *)
+  let parse_params tokens idx =
+    let rec sub cur_idx acc =
+      let tok = List.nth_exn tokens cur_idx in
+      match tok with
+      | Token.Comma -> sub (cur_idx + 1) acc
+      | Token.Ident (_ as s) -> sub (cur_idx + 1) (s :: acc)
+      | _ -> (acc, cur_idx)
+    in
+    let params, last_idx = sub idx [] in
+    (List.rev params, last_idx)
+  in
+  let params, params_idx = parse_params tokens (idx + 2) in
+  let _ = verify_token tokens params_idx Token.Rparen "<fun-parameters> ends with" in
+  let _ = verify_token tokens (params_idx + 1) Token.Lbrace "<fun-body> begins with" in
+
+  (* body *)
+  let body_expr, body_idx = parse_expr tokens (params_idx + 2) (priority_of_operation Lowest) in
+  let _ = verify_token tokens (body_idx + 1) Token.Rbrace "<fun-body> ends with" in
+
+  (* call : fun (parameters) { body } (arguments) *)
+  let fun_expr = Expression.FunExpr (params, body_expr) in
+  match List.nth tokens (body_idx + 2) with
+  | Some Token.Lparen ->
+      let args, args_idx = parse_args tokens (body_idx + 3) in
+      let _ = verify_token tokens args_idx Token.Rparen "<fun-arguments> ends with" in
+      (Expression.CallExpr (fun_expr, args), args_idx + 1)
+  | _ -> (fun_expr, body_idx + 1)
 
 (* Get parse prefix function from Token. *)
 and get_prefix_fn token =
@@ -104,6 +163,8 @@ and get_prefix_fn token =
   | Token.True -> parse_prefix_true
   | Token.False -> parse_prefix_false
   | Token.If -> parse_prefix_if
+  | Token.Fun -> parse_prefix_fun
+  | Token.Ident _ -> parse_prefix_ident
   | _ ->
       failwith (Printf.sprintf "Prefix function is not implemented for %s" (Token.to_string token))
 
