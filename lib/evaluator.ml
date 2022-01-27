@@ -36,14 +36,14 @@ let rec eval expr env =
       match eval cond env with
       | Value.Boolean b -> if b then eval conq env else eval alt env
       | _ -> failwith "condition must be boolean")
-  | IdentExpr s -> eval (List.Assoc.find_exn env s ~equal:String.equal) env
+  | IdentExpr s -> eval (Environment.find env s) env
   | FunExpr _ as expr -> Value.Function expr
   | CallExpr (expr, args) -> (
       match expr with
       | FunExpr (params, body) ->
           let new_env =
             List.map2_exn params args ~f:(fun p a -> (p, a))
-            |> List.fold ~init:env ~f:(fun acc (p, a) -> List.Assoc.add acc p a ~equal:String.equal)
+            |> List.fold ~init:env ~f:(fun acc (p, a) -> Environment.add acc ~key:p ~value:a)
           in
           eval body new_env
       | IdentExpr _ -> (
@@ -52,4 +52,4 @@ let rec eval expr env =
           | _ -> failwith "type error")
       | _ -> failwith "type error")
 
-let eval_string expr = Value.to_string (eval expr [])
+let eval_string expr = Value.to_string (eval expr Environment.empty)
