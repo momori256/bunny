@@ -51,5 +51,9 @@ let rec eval expr env =
           | Function fun_expr -> eval (CallExpr (fun_expr, args)) env
           | _ -> failwith "type error")
       | _ -> failwith "type error")
+  | LetExpr (ident, rhs, body) -> (
+      match ident with
+      | Expression.IdentExpr s -> eval body (Environment.add env ~key:s ~value:rhs)
+      | _ -> failwith "type error")
 
 let eval_string expr = Value.to_string (eval expr Environment.empty)

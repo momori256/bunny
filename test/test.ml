@@ -105,6 +105,11 @@ let test_lexer =
         ]
   in
 
+  let let_1 =
+    make "let x = 1 in x + 2"
+      Token.[ Let; Ident "x"; Equal; Integer 1; In; Ident "x"; Plus; Integer 2 ]
+  in
+
   let res =
     test
       [
@@ -119,6 +124,7 @@ let test_lexer =
         fun_1;
         ident_1;
         call_1;
+        let_1;
       ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;
@@ -169,6 +175,8 @@ let text_parser =
 
   let ident = make (Lexer.tokenize "xyz * a + b") "((xyz * a) + b)" in
   let call_1 = make (Lexer.tokenize "fun (x) { x + 2 } (5)") "((fun (x) { (x + 2) }) (5))" in
+
+  let let_1 = make (Lexer.tokenize "let x = 1 in x + 2") "([x = 1] in (x + 2))" in
   let res =
     test
       [
@@ -195,6 +203,7 @@ let text_parser =
         fun_2;
         ident;
         call_1;
+        let_1;
       ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;
@@ -264,6 +273,40 @@ let text_evaluator =
        Int.to_string (f (f (f 7))))
   in
 
+  let let_1 =
+    make
+      (Parser.parse (Lexer.tokenize "let x = 2 in x * x"))
+      (Int.to_string
+         (let x = 2 in
+          x * x))
+  in
+  let let_2 =
+    make
+      (Parser.parse (Lexer.tokenize "let f = fun (x, y) { x < y } in f(4*2, 5+5)"))
+      (Bool.to_string
+         (let f x y = x < y in
+          f (4 * 2) (5 + 5)))
+  in
+  let let_3 =
+    make
+      (Parser.parse (Lexer.tokenize "let f = fun (x, y) { let z = x + y in z * z } in f(5, 10)"))
+      (Int.to_string
+         (let f x y =
+            let z = x + y in
+            z * z
+          in
+          f 5 10))
+  in
+  let let_4 =
+    make
+      (Parser.parse (Lexer.tokenize "let x = 1 in let y = x + 1 in let z = y + 1 in z"))
+      (Int.to_string
+         (let x = 1 in
+          let y = x + 1 in
+          let z = y + 1 in
+          z))
+  in
+
   let res =
     test
       [
@@ -282,6 +325,10 @@ let text_evaluator =
         call_1;
         call_2;
         call_3;
+        let_1;
+        let_2;
+        let_3;
+        let_4;
       ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;

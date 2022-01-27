@@ -13,8 +13,8 @@ let rec repl () =
         try
           let tokens = Lexer.tokenize line in
           let expr = Parser.parse tokens in
-          let result = Evaluator.eval expr in
-          let _ = printf "%s\n" (Value.to_string result) in
+          let result = Evaluator.eval_string expr in
+          let _ = printf "%s\n" result in
           repl ()
         with _ -> printf "Invalid expression.\n")
 

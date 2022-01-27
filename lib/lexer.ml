@@ -24,6 +24,8 @@ let rec step str idx acc =
       | "if" -> Token.If
       | "else" -> Token.Else
       | "fun" -> Token.Fun
+      | "let" -> Token.Let
+      | "in" -> Token.In
       | _ as s -> Token.Ident s
     in
 

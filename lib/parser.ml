@@ -1,6 +1,6 @@
 open Base
 
-type operation = Lowest | Compare | Sum | Product | Prefix | Group
+type operation = Lowest | Compare | Sum | Product | Prefix | Group | Highest
 
 let priority_of_operation = function
   | Lowest -> 0
@@ -9,6 +9,7 @@ let priority_of_operation = function
   | Product -> 3
   | Prefix -> 4
   | Group -> 5
+  | Highest -> 6
 
 let priority_of_token token =
   let infix_op_of_token token =
@@ -78,8 +79,12 @@ and parse_prefix_lparen tokens idx =
 
 and verify_token tokens idx expected_tok msg =
   let tok = List.nth_exn tokens idx in
-  if Token.equal tok expected_tok then ()
-  else
+  let ok =
+    match (tok, expected_tok) with
+    | Token.Ident _, Token.Ident _ -> true (* Does not check contents of ident. *)
+    | _ -> Token.equal tok expected_tok
+  in
+  if not ok then
     failwith
       (Printf.sprintf "%s: '%s' <> '%s'" msg (Token.to_string tok) (Token.to_string expected_tok))
 
@@ -152,6 +157,25 @@ and parse_prefix_fun tokens idx =
       (Expression.CallExpr (fun_expr, args), args_idx + 1)
   | _ -> (fun_expr, body_idx + 1)
 
+and parse_prefix_let tokens idx =
+  (* let (ident) = (rhs) in (body) *)
+  let _ = verify_token tokens idx Token.Let "<let> begins with" in
+  let _ = verify_token tokens (idx + 1) (Token.Ident "") "<let-ident> begins with" in
+
+  (* ident *)
+  let expr, ident_idx = parse_expr tokens (idx + 1) (priority_of_operation Highest) in
+  let _ = verify_token tokens (ident_idx + 1) Token.Equal "<let> has =" in
+  match expr with
+  | Expression.IdentExpr _ as ident_expr ->
+      (* rhs *)
+      let rhs_expr, rhs_idx = parse_expr tokens (ident_idx + 2) (priority_of_operation Lowest) in
+      let _ = verify_token tokens (rhs_idx + 1) Token.In "<let-body> begin with in" in
+
+      (* body *)
+      let body_expr, body_idx = parse_expr tokens (rhs_idx + 2) (priority_of_operation Lowest) in
+      (Expression.LetExpr (ident_expr, rhs_expr, body_expr), body_idx)
+  | _ -> failwith "Expected: IdentExpr"
+
 (* Get parse prefix function from Token. *)
 and get_prefix_fn token =
   match token with
@@ -165,6 +189,7 @@ and get_prefix_fn token =
   | Token.If -> parse_prefix_if
   | Token.Fun -> parse_prefix_fun
   | Token.Ident _ -> parse_prefix_ident
+  | Token.Let -> parse_prefix_let
   | _ ->
       failwith (Printf.sprintf "Prefix function is not implemented for %s" (Token.to_string token))
 

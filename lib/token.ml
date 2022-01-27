@@ -20,6 +20,8 @@ type t =
   | If
   | Else
   | Fun
+  | Let
+  | In
   | Eof
   | Illegal
 
@@ -45,6 +47,8 @@ let to_string = function
   | If -> "if"
   | Else -> "else"
   | Fun -> "fun"
+  | Let -> "let"
+  | In -> "in"
   | Eof -> "EOF"
   | Illegal -> "ILLEGAL"
 
