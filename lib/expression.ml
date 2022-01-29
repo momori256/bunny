@@ -11,7 +11,7 @@ type t =
   | IdentExpr of string
   | FunExpr of string list * t
   | CallExpr of t * t list
-  | LetExpr of t * t * t
+  | LetExpr of t * t * t option
 (* ident rhs body *)
 
 (* (ident, t), t *)
@@ -49,8 +49,11 @@ let rec to_string = function
       let fun_expr = to_string fun_expr in
       let args = String.concat (List.map args ~f:to_string) ~sep:", " in
       Printf.sprintf "(%s (%s))" fun_expr args
-  | LetExpr (id_expr, right, in_expr) ->
+  | LetExpr (id_expr, right, in_expr) -> (
       let id_expr = to_string id_expr in
       let right = to_string right in
-      let in_expr = to_string in_expr in
-      Printf.sprintf "([%s = %s] in %s)" id_expr right in_expr
+      match in_expr with
+      | Some in_expr ->
+          let in_expr = to_string in_expr in
+          Printf.sprintf "([%s = %s] in %s)" id_expr right in_expr
+      | None -> Printf.sprintf "([%s = %s])" id_expr right)

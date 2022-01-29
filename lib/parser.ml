@@ -166,14 +166,18 @@ and parse_prefix_let tokens idx =
   let expr, ident_idx = parse_expr tokens (idx + 1) (priority_of_operation Highest) in
   let _ = verify_token tokens (ident_idx + 1) Token.Equal "<let> has =" in
   match expr with
-  | Expression.IdentExpr _ as ident_expr ->
+  | Expression.IdentExpr _ as ident_expr -> (
       (* rhs *)
       let rhs_expr, rhs_idx = parse_expr tokens (ident_idx + 2) (priority_of_operation Lowest) in
-      let _ = verify_token tokens (rhs_idx + 1) Token.In "<let-body> begin with in" in
-
-      (* body *)
-      let body_expr, body_idx = parse_expr tokens (rhs_idx + 2) (priority_of_operation Lowest) in
-      (Expression.LetExpr (ident_expr, rhs_expr, body_expr), body_idx)
+      match List.nth tokens (rhs_idx + 1) with
+      | Some tok when Token.equal tok Token.In ->
+          (* body *)
+          let _ = verify_token tokens (rhs_idx + 1) Token.In "<let-body> begin with in" in
+          let body_expr, body_idx =
+            parse_expr tokens (rhs_idx + 2) (priority_of_operation Lowest)
+          in
+          (Expression.LetExpr (ident_expr, rhs_expr, Some body_expr), body_idx)
+      | _ -> (Expression.LetExpr (ident_expr, rhs_expr, None), rhs_idx))
   | _ -> failwith "Expected: IdentExpr"
 
 (* Get parse prefix function from Token. *)
