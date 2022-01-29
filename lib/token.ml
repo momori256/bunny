@@ -1,19 +1,19 @@
 type t =
-  | Integer of int
+  | Int of int
   | Ident of string
   | Plus
   | Minus
-  | Asterisk
+  | Star
   | Lparen
   | Rparen
   | Lbrace
   | Rbrace
   | Bang
   | Equal
-  | NotEqual
+  | Nequal
   | Less
   | Greater
-  | Not
+  | Tilde
   | Comma
   | True
   | False
@@ -26,21 +26,21 @@ type t =
   | Illegal
 
 let to_string = function
-  | Integer x -> Int.to_string x
+  | Int x -> Int.to_string x
   | Ident s -> s
   | Plus -> "+"
   | Minus -> "-"
-  | Asterisk -> "*"
+  | Star -> "*"
   | Lparen -> "("
   | Rparen -> ")"
   | Lbrace -> "{"
   | Rbrace -> "}"
   | Bang -> "!"
   | Equal -> "="
-  | NotEqual -> "<>"
+  | Nequal -> "<>"
   | Less -> "<"
   | Greater -> ">"
-  | Not -> "~"
+  | Tilde -> "~"
   | Comma -> ","
   | True -> "true"
   | False -> "false"

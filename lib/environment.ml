@@ -1,6 +1,7 @@
 open Base
+module V = Value
 
-type t = Value.t list
+type t = V.t list
 
 let empty = []
 

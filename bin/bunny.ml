@@ -1,21 +1,20 @@
 open Stdio
 open Lib
 open Base
+module V = Value
 
 let process_line line genv =
   if List.mem [ "exit"; "quit" ] line ~equal:String.equal then Caml.exit 0;
   if String.is_empty line then genv
   else
     try
-      let tokens = Lexer.tokenize line in
-      let expr = Parser.parse tokens in
+      let toks = Lexer.tokenize line in
+      let expr = Parser.parse toks in
       let value = Evaluator.eval expr [] genv in
-      let _ = printf "%s\n" (Value.to_string value) in
-      match value with
-      | Value.Integer _ | Value.Boolean _ | Value.Function _ -> genv
-      | Value.AddGlobal pair -> pair :: genv
+      let _ = printf "%s\n" (V.to_string value) in
+      match value with V.Int _ | V.Bool _ | V.Fun _ -> genv | V.Glet pair -> pair :: genv
     with _ ->
-      printf "Invalid expression.\n";
+      printf "Invalid Expr.\n";
       genv
 
 let rec repl genv =

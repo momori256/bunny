@@ -1,6 +1,7 @@
 open Stdio
 open Lib
 open Base
+module T = Token
 
 type ('a, 'b) test_case = { input : 'b; expected : 'a; f : 'b -> 'a; equal : 'a -> 'a -> bool }
 
@@ -8,66 +9,63 @@ let test cases =
   cases |> List.map ~f:(fun { input; expected; f; equal } -> equal expected (f input))
 
 let test_lexer =
-  let make input expected =
-    { input; expected; f = Lexer.tokenize; equal = List.equal Token.equal }
-  in
+  let make input expected = { input; expected; f = Lexer.tokenize; equal = List.equal T.equal } in
 
   let single_tok =
-    make "+-*()!=>~" Token.[ Plus; Minus; Asterisk; Lparen; Rparen; Bang; Equal; Greater; Not ]
+    make "+-*()!=>~" T.[ Plus; Minus; Star; Lparen; Rparen; Bang; Equal; Greater; Tilde ]
   in
-  let single_int = make "12" Token.[ Integer 12 ] in
-  let single_true_false = make "true false" Token.[ True; False ] in
+  let single_int = make "12" T.[ Int 12 ] in
+  let single_true_false = make "true false" T.[ True; False ] in
 
-  let double_tok_1 = make "314<>15" Token.[ Integer 314; NotEqual; Integer 15 ] in
-  let double_tok_2 = make "!<><" Token.[ Bang; NotEqual; Less ] in
+  let double_tok_1 = make "314<>15" T.[ Int 314; Nequal; Int 15 ] in
+  let double_tok_2 = make "!<><" T.[ Bang; Nequal; Less ] in
 
   let whitespace_included_1 =
     make "  ~ ( 99 <>  100  ) <> ( 4  > 1)  "
       [
-        Not;
+        Tilde;
         Lparen;
-        Integer 99;
-        NotEqual;
-        Integer 100;
+        Int 99;
+        Nequal;
+        Int 100;
         Rparen;
-        NotEqual;
+        Nequal;
         Lparen;
-        Integer 4;
+        Int 4;
         Greater;
-        Integer 1;
+        Int 1;
         Rparen;
       ]
   in
   let whitespace_included_2 =
-    make " (5 = 5) <> ~false"
-      Token.[ Lparen; Integer 5; Equal; Integer 5; Rparen; NotEqual; Not; False ]
+    make " (5 = 5) <> ~false" T.[ Lparen; Int 5; Equal; Int 5; Rparen; Nequal; Tilde; False ]
   in
 
   let if_1 =
     make "if (true) { 4 + 3 } else { 2 * 7 }"
-      Token.
+      T.
         [
           If;
           Lparen;
           True;
           Rparen;
           Lbrace;
-          Integer 4;
+          Int 4;
           Plus;
-          Integer 3;
+          Int 3;
           Rbrace;
           Else;
           Lbrace;
-          Integer 2;
-          Asterisk;
-          Integer 7;
+          Int 2;
+          Star;
+          Int 7;
           Rbrace;
         ]
   in
 
   let fun_1 =
     make "fun (x, y) { x + y }"
-      Token.
+      T.
         [
           Fun;
           Lparen;
@@ -83,12 +81,10 @@ let test_lexer =
         ]
   in
 
-  let ident_1 =
-    make "3~91xyz+abc" Token.[ Integer 3; Not; Integer 91; Ident "xyz"; Plus; Ident "abc" ]
-  in
+  let ident_1 = make "3~91xyz+abc" T.[ Int 3; Tilde; Int 91; Ident "xyz"; Plus; Ident "abc" ] in
   let call_1 =
     make "fun (x) { x + 2 } (5)"
-      Token.
+      T.
         [
           Fun;
           Lparen;
@@ -97,17 +93,16 @@ let test_lexer =
           Lbrace;
           Ident "x";
           Plus;
-          Integer 2;
+          Int 2;
           Rbrace;
           Lparen;
-          Integer 5;
+          Int 5;
           Rparen;
         ]
   in
 
   let let_1 =
-    make "let x = 1 in x + 2"
-      Token.[ Let; Ident "x"; Equal; Integer 1; In; Ident "x"; Plus; Integer 2 ]
+    make "let x = 1 in x + 2" T.[ Let; Ident "x"; Equal; Int 1; In; Ident "x"; Plus; Int 2 ]
   in
 
   let res =
