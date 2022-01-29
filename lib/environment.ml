@@ -1,6 +1,6 @@
 open Base
 
-type t = (string * Expression.t) list
+type t = Value.t list
 
 let empty = []
 

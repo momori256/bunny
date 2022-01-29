@@ -309,6 +309,13 @@ let text_evaluator =
   let let_5 =
     make (Parser.parse (Lexer.tokenize "let f = fun (x) { x = 5 }")) "(f -> (fun (x) { (x = 5) }))"
   in
+  let let_6 =
+    make
+      (Parser.parse (Lexer.tokenize "let x = 1 in fun (x) { x } (2)"))
+      (Int.to_string
+         (let _ = 1 in
+          (fun x -> x) 2))
+  in
 
   let res =
     test
@@ -333,6 +340,7 @@ let text_evaluator =
         let_3;
         let_4;
         let_5;
+        let_6;
       ]
     |> List.fold ~init:true ~f:(fun acc res ->
            printf "%b\n" res;

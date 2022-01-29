@@ -1,9 +1,9 @@
 open Base
 
-type t = Integer of int | Boolean of bool | Function of Expression.t | AddGlobal of Environment.t
+type t = Integer of int | Boolean of bool | Function of Expression.t | AddGlobal of (string * t)
 
-let to_string = function
+let rec to_string = function
   | Integer x -> Int.to_string x
   | Boolean b -> Bool.to_string b
   | Function expr -> Expression.to_string expr
-  | AddGlobal env -> Environment.to_string env
+  | AddGlobal (k, v) -> Printf.sprintf "(%s -> %s)" k (to_string v)

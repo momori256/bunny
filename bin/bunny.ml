@@ -13,7 +13,7 @@ let process_line line genv =
       let _ = printf "%s\n" (Value.to_string value) in
       match value with
       | Value.Integer _ | Value.Boolean _ | Value.Function _ -> genv
-      | Value.AddGlobal env -> env
+      | Value.AddGlobal pair -> pair :: genv
     with _ ->
       printf "Invalid expression.\n";
       genv
