@@ -21,6 +21,10 @@ let rec equal t1 t2 =
   | Bool b1, Bool b2 -> Bool.equal b1 b2
   | Prefix (op1, expr1), Prefix (op2, expr2) -> T.equal op1 op2 && equal expr1 expr2
   | Infix (op1, l1, r1), Infix (op2, l2, r2) -> T.equal op1 op2 && equal l1 l2 && equal r1 r2
+  | If (cn1, co1, al1), If (cn2, co2, al2) -> equal cn1 cn2 && equal co1 co2 && equal al1 al2
+  | Ident s1, Ident s2 -> String.equal s1 s2
+  | Fun (args1, bd1), Fun (args2, bd2) -> List.equal String.equal args1 args2 && equal bd1 bd2
+  | Call (f1, p1), Call (f2, p2) -> equal f1 f2 && List.equal equal p1 p2
   | _, _ -> false
 
 let rec to_string = function

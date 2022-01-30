@@ -1,344 +1,76 @@
-open Stdio
-open Lib
 open Base
-module T = Token
 
-type ('a, 'b) test_case = { input : 'b; expected : 'a; f : 'b -> 'a; equal : 'a -> 'a -> bool }
+(* Test case. *)
+module type ICase = sig
+  type ('a, 'b) t
 
-let test cases =
-  cases |> List.map ~f:(fun { input; expected; f; equal } -> equal expected (f input))
+  val make : string -> ('a -> 'a -> bool) -> 'a -> ('b -> 'a) -> 'b -> ('a, 'b) t
+  val run : ('a, 'b) t -> bool * ('a * 'a) option
+  val name : ('a, 'b) t -> string
+end
 
-let test_lexer =
-  let make input expected = { input; expected; f = Lexer.tokenize; equal = List.equal T.equal } in
+module Case : ICase = struct
+  type ('a, 'b) t = {
+    name : string;
+    equal : 'a -> 'a -> bool;
+    expected : 'a;
+    f : 'b -> 'a;
+    input : 'b;
+  }
 
-  let single_tok =
-    make "+-*()!=>~" T.[ Plus; Minus; Star; Lparen; Rparen; Bang; Equal; Greater; Tilde ]
-  in
-  let single_int = make "12" T.[ Int 12 ] in
-  let single_true_false = make "true false" T.[ True; False ] in
+  let make name equal expected f input = { name; equal; expected; f; input }
 
-  let double_tok_1 = make "314<>15" T.[ Int 314; Nequal; Int 15 ] in
-  let double_tok_2 = make "!<><" T.[ Bang; Nequal; Less ] in
+  let run case =
+    let res = case.f case.input in
+    let equal = case.equal case.expected res in
+    let info = if equal then None else Some (case.expected, res) in
+    (equal, info)
 
-  let whitespace_included_1 =
-    make "  ~ ( 99 <>  100  ) <> ( 4  > 1)  "
-      [
-        Tilde;
-        Lparen;
-        Int 99;
-        Nequal;
-        Int 100;
-        Rparen;
-        Nequal;
-        Lparen;
-        Int 4;
-        Greater;
-        Int 1;
-        Rparen;
-      ]
-  in
-  let whitespace_included_2 =
-    make " (5 = 5) <> ~false" T.[ Lparen; Int 5; Equal; Int 5; Rparen; Nequal; Tilde; False ]
-  in
+  let name case = case.name
+end
 
-  let if_1 =
-    make "if (true) { 4 + 3 } else { 2 * 7 }"
-      T.
-        [
-          If;
-          Lparen;
-          True;
-          Rparen;
-          Lbrace;
-          Int 4;
-          Plus;
-          Int 3;
-          Rbrace;
-          Else;
-          Lbrace;
-          Int 2;
-          Star;
-          Int 7;
-          Rbrace;
-        ]
+(* Test. *)
+type ('a, 'b) t = { name : string; cases : ('a, 'b) Case.t list }
+
+let make ~name ~equal ~f cases =
+  let cases = List.map cases ~f:(fun (name, exp, input) -> Case.make name equal exp f input) in
+  { name; cases }
+
+let run t = List.map t.cases ~f:(fun case -> (Case.name case, Case.run case))
+
+let run_and_print t ~to_string =
+  let open Stdio in
+  let results = run t in
+  let ok =
+    let failed =
+      List.exists results ~f:(fun (_, info) -> match info with true, None -> false | _ -> true)
+    in
+    not failed
   in
 
-  let fun_1 =
-    make "fun (x, y) { x + y }"
-      T.
-        [
-          Fun;
-          Lparen;
-          Ident "x";
-          Comma;
-          Ident "y";
-          Rparen;
-          Lbrace;
-          Ident "x";
-          Plus;
-          Ident "y";
-          Rbrace;
-        ]
+  let _ = printf "<%s> %s\n" t.name (if ok then "OK" else "Failed") in
+  let _ =
+    List.map results ~f:(fun (name, res) ->
+        let info =
+          match res with
+          | true, None -> "OK"
+          | false, Some (exp, r) ->
+              Printf.sprintf "Failed [expected: %s, result: %s]" (to_string exp) (to_string r)
+          | _ -> "Invalid result"
+        in
+        printf "\t(%s) %s\n" name info)
   in
+  ()
 
-  let ident_1 = make "3~91xyz+abc" T.[ Int 3; Tilde; Int 91; Ident "xyz"; Plus; Ident "abc" ] in
-  let call_1 =
-    make "fun (x) { x + 2 } (5)"
-      T.
-        [
-          Fun;
-          Lparen;
-          Ident "x";
-          Rparen;
-          Lbrace;
-          Ident "x";
-          Plus;
-          Int 2;
-          Rbrace;
-          Lparen;
-          Int 5;
-          Rparen;
-        ]
-  in
+(* Uncurrying. *)
+module type IUncurry = sig
+  val arg2 : ('a -> 'b -> 'c) -> 'a * 'b -> 'c
+  val arg3 : ('a -> 'b -> 'c -> 'd) -> 'a * 'b * 'c -> 'd
+  val arg4 : ('a -> 'b -> 'c -> 'd -> 'e) -> 'a * 'b * 'c * 'd -> 'e
+end
 
-  let let_1 =
-    make "let x = 1 in x + 2" T.[ Let; Ident "x"; Equal; Int 1; In; Ident "x"; Plus; Int 2 ]
-  in
-
-  let res =
-    test
-      [
-        single_tok;
-        single_int;
-        single_true_false;
-        double_tok_1;
-        double_tok_2;
-        whitespace_included_1;
-        whitespace_included_2;
-        if_1;
-        fun_1;
-        ident_1;
-        call_1;
-        let_1;
-      ]
-    |> List.fold ~init:true ~f:(fun acc res ->
-           printf "%b\n" res;
-           acc && res)
-  in
-  printf "test_lexer: %s\n" (if res then "OK" else "Failed")
-
-let text_parser =
-  let make input expected = { input; expected; f = Parser.parse_string; equal = String.equal } in
-
-  let int_literal = make (Lexer.tokenize "12") "12" in
-  let prefix_minus = make (Lexer.tokenize "-123") "(-123)" in
-  let prefix_plus = make (Lexer.tokenize "+123") "123" in
-  let prefix_not = make (Lexer.tokenize "~true") "(~true)" in
-
-  let infix_plus_1 = make (Lexer.tokenize "19 + 21") "(19 + 21)" in
-  let infix_plus_2 = make (Lexer.tokenize "411 + 9 + 37") "((411 + 9) + 37)" in
-  let infix_with_prefix = make (Lexer.tokenize "3 + 4 + -5") "((3 + 4) + (-5))" in
-  let infix_product_1 = make (Lexer.tokenize "3 + 5 * 7") "(3 + (5 * 7))" in
-  let infix_less = make (Lexer.tokenize "5 < 3") "(5 < 3)" in
-  let infix_greater_1 = make (Lexer.tokenize "5 > 3") "(5 > 3)" in
-  let infix_greater_2 = make (Lexer.tokenize "1 + 2 > 3 + 4") "((1 + 2) > (3 + 4))" in
-  let infix_equal = make (Lexer.tokenize "5 = 3") "(5 = 3)" in
-  let infix_notequal = make (Lexer.tokenize "~true <> ~false") "((~true) <> (~false))" in
-
-  let group_1 = make (Lexer.tokenize "(3 + 5) + 7") "((3 + 5) + 7)" in
-  let group_2 = make (Lexer.tokenize "(3 + 5) * -(7 + 9)") "((3 + 5) * (-(7 + 9)))" in
-  let group_3 = make (Lexer.tokenize "5 + 3 <> 2 * 4") "((5 + 3) <> (2 * 4))" in
-
-  let if_1 = make (Lexer.tokenize "if (true) { 1 } else { 2 }") "(if (true) then (1) else (2))" in
-  let if_2 =
-    make
-      (Lexer.tokenize "if (true) { 4 + 3 } else { 2 * 7 }")
-      "(if (true) then ((4 + 3)) else ((2 * 7)))"
-  in
-  let if_3 =
-    make
-      (Lexer.tokenize "if (true) { if (false) { 1 } else { 2 } } else { 3 }")
-      "(if (true) then ((if (false) then (1) else (2))) else (3))"
-  in
-
-  let fun_1 = make (Lexer.tokenize "fun (x, y) { x + y }") "(fun (x, y) { (x + y) })" in
-  let fun_2 =
-    make
-      (Lexer.tokenize "fun () { ~fun (c, d) { c <> d } }")
-      "(fun () { (~(fun (c, d) { (c <> d) })) })"
-  in
-
-  let ident = make (Lexer.tokenize "xyz * a + b") "((xyz * a) + b)" in
-  let call_1 = make (Lexer.tokenize "fun (x) { x + 2 } (5)") "((fun (x) { (x + 2) }) (5))" in
-
-  let let_1 = make (Lexer.tokenize "let x = 1 in x + 2") "([x = 1] in (x + 2))" in
-  let res =
-    test
-      [
-        int_literal;
-        prefix_minus;
-        prefix_plus;
-        prefix_not;
-        infix_plus_1;
-        infix_plus_2;
-        infix_with_prefix;
-        infix_product_1;
-        infix_less;
-        infix_greater_1;
-        infix_greater_2;
-        infix_equal;
-        infix_notequal;
-        group_1;
-        group_2;
-        group_3;
-        if_1;
-        if_2;
-        if_3;
-        fun_1;
-        fun_2;
-        ident;
-        call_1;
-        let_1;
-      ]
-    |> List.fold ~init:true ~f:(fun acc res ->
-           printf "%b\n" res;
-           acc && res)
-  in
-  printf "test_parser: %s\n" (if res then "OK" else "Failed")
-
-let text_evaluator =
-  let make input expected = { input; expected; f = Evaluator.eval_string; equal = String.equal } in
-
-  let int_literal = make (Parser.parse (Lexer.tokenize "12")) (Int.to_string 12) in
-  let bool_literal = make (Parser.parse (Lexer.tokenize "true")) (Bool.to_string true) in
-  let prefix_minus = make (Parser.parse (Lexer.tokenize "123 + 54")) (Int.to_string (123 + 54)) in
-  let prefix_plus = make (Parser.parse (Lexer.tokenize "-123 * 99")) (Int.to_string (-123 * 99)) in
-  let prefix_not =
-    make
-      (Parser.parse (Lexer.tokenize "~true <> (3 = 5)"))
-      (Bool.to_string (Bool.( <> ) (not true) (3 = 5)))
-  in
-  let compare_1 = make (Parser.parse (Lexer.tokenize "12 < 56")) (Bool.to_string (12 < 56)) in
-  let compare_2 =
-    make (Parser.parse (Lexer.tokenize "1 + 2 > 3 + 4")) (Bool.to_string (1 + 2 > 3 + 4))
-  in
-  let group_1 =
-    make (Parser.parse (Lexer.tokenize "(3 + 5) * -(7 + 9)")) (Int.to_string ((3 + 5) * -(7 + 9)))
-  in
-
-  let if_1 =
-    make
-      (Parser.parse (Lexer.tokenize "if (true) { 1 } else { 2 }"))
-      (Int.to_string (if true then 1 else 2))
-  in
-  let if_2 =
-    make
-      (Parser.parse (Lexer.tokenize "if (2 > 3) { 1 } else { if (1 = 1) { 2 } else { 3 } }"))
-      (Int.to_string (if 2 > 3 then 1 else if 1 = 1 then 2 else 3))
-  in
-
-  let fun_1 =
-    make (Parser.parse (Lexer.tokenize "fun (x, y) { x + y }")) "(fun (x, y) { (x + y) })"
-  in
-  let fun_2 =
-    make
-      (Parser.parse (Lexer.tokenize "fun () { ~fun (c, d) { c <> d } }"))
-      "(fun () { (~(fun (c, d) { (c <> d) })) })"
-  in
-
-  let call_1 =
-    make
-      (Parser.parse (Lexer.tokenize "fun (x) { x + 2 } (5)"))
-      (let x = 5 in
-       Int.to_string (x + 2))
-  in
-  let call_2 =
-    make
-      (Parser.parse
-         (Lexer.tokenize
-            "fun (x, y) { if (x) { y * 2 } else { y - 2 } } (true, if (false) { 5 } else { 10 })"))
-      (let x = true in
-       let y = if false then 5 else 10 in
-       Int.to_string (if x then y * 2 else y - 2))
-  in
-  let call_3 =
-    make
-      (Parser.parse (Lexer.tokenize "fun (f) { f(f(f(7))) } (fun (x) { x * x })"))
-      (let f x = x * x in
-       Int.to_string (f (f (f 7))))
-  in
-
-  let let_1 =
-    make
-      (Parser.parse (Lexer.tokenize "let x = 2 in x * x"))
-      (Int.to_string
-         (let x = 2 in
-          x * x))
-  in
-  let let_2 =
-    make
-      (Parser.parse (Lexer.tokenize "let f = fun (x, y) { x < y } in f(4*2, 5+5)"))
-      (Bool.to_string
-         (let f x y = x < y in
-          f (4 * 2) (5 + 5)))
-  in
-  let let_3 =
-    make
-      (Parser.parse (Lexer.tokenize "let f = fun (x, y) { let z = x + y in z * z } in f(5, 10)"))
-      (Int.to_string
-         (let f x y =
-            let z = x + y in
-            z * z
-          in
-          f 5 10))
-  in
-  let let_4 =
-    make
-      (Parser.parse (Lexer.tokenize "let x = 1 in let y = x + 1 in let z = y + 1 in z"))
-      (Int.to_string
-         (let x = 1 in
-          let y = x + 1 in
-          let z = y + 1 in
-          z))
-  in
-  let let_5 =
-    make (Parser.parse (Lexer.tokenize "let f = fun (x) { x = 5 }")) "(f -> (fun (x) { (x = 5) }))"
-  in
-  let let_6 =
-    make
-      (Parser.parse (Lexer.tokenize "let x = 1 in fun (x) { x } (2)"))
-      (Int.to_string
-         (let _ = 1 in
-          (fun x -> x) 2))
-  in
-
-  let res =
-    test
-      [
-        int_literal;
-        bool_literal;
-        prefix_minus;
-        prefix_plus;
-        prefix_not;
-        compare_1;
-        compare_2;
-        group_1;
-        if_1;
-        if_2;
-        fun_1;
-        fun_2;
-        call_1;
-        call_2;
-        call_3;
-        let_1;
-        let_2;
-        let_3;
-        let_4;
-        let_5;
-        let_6;
-      ]
-    |> List.fold ~init:true ~f:(fun acc res ->
-           printf "%b\n" res;
-           acc && res)
-  in
-  printf "test_evaluator: %s\n" (if res then "OK" else "Failed")
+module Uncurry : IUncurry = struct
+  let arg2 f (x1, x2) = f x1 x2
+  let arg3 f (x1, x2, x3) = f x1 x2 x3
+  let arg4 f (x1, x2, x3, x4) = f x1 x2 x3 x4
+end
