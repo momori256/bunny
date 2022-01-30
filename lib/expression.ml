@@ -8,12 +8,12 @@ type t =
   | Bool of bool
   | Prefix of operator * t
   | Infix of operator * t * t
+  | Suffix of operator * t
   | If of t * t * t
   | Ident of string
   | Fun of string list * t
   | Call of t * t list
   | Let of t * t * t option
-(* | SuffixExpr of operator * Expr *)
 
 let rec equal t1 t2 =
   match (t1, t2) with
@@ -36,6 +36,10 @@ let rec to_string = function
       let expr1 = to_string expr1 in
       let expr2 = to_string expr2 in
       Printf.sprintf "(%s %s %s)" expr1 op expr2
+  | Suffix (op, expr) ->
+      let op = T.to_string op in
+      let expr = to_string expr in
+      Printf.sprintf "(%s%s)" expr op
   | If (cond, cons, alt) ->
       let cond = to_string cond in
       let conq = to_string cons in

@@ -34,6 +34,16 @@ let rec eval expr lenv genv =
       | T.Nequal, V.Int x1, V.Int x2 -> V.Bool (x1 <> x2)
       | T.Nequal, V.Bool b1, V.Bool b2 -> V.Bool (not (Bool.equal b1 b2))
       | _ -> failwith (Printf.sprintf "Illegal infix Expr (%s)" (E.to_string expr)))
+  | E.Suffix (op, expr) -> (
+      match op with
+      | T.Bang -> (
+          match eval expr lenv genv with
+          | V.Int x ->
+              let rec fact n = if n <= 1 then 1 else n * fact (n - 1) in
+              let x = if x < 0 then -fact (-x) else fact x in
+              Int x
+          | _ -> failwith "type error")
+      | _ -> failwith "type error")
   | E.If (cond, conq, alt) -> (
       match eval cond lenv genv with
       | V.Bool b -> if b then eval conq lenv genv else eval alt lenv genv

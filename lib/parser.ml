@@ -190,6 +190,12 @@ and get_prefix_fn tok =
   | T.Let -> parse_prefix_let
   | _ -> failwith (Printf.sprintf "Prefix function is not implemented for %s" (T.to_string tok))
 
+and parse_suffix_bang toks idx expr =
+  let _ = verify_tok toks idx T.Bang "Expected: !" in
+  (E.Suffix (T.Bang, expr), idx)
+
+and get_suffix_fn tok = match tok with T.Bang -> Some parse_suffix_bang | _ -> None
+
 and parse_infix_expr toks idx left_expr =
   let tok = List.nth_exn toks idx in
   let pri = priority_of_tok tok in
@@ -209,6 +215,13 @@ and parse_expr toks idx pri =
     prefix_fn toks idx
   in
 
+  let parse_suffix idx expr =
+    match List.nth toks idx with
+    | None -> (expr, idx - 1)
+    | Some tok -> (
+        match get_suffix_fn tok with None -> (expr, idx - 1) | Some f -> f toks idx expr)
+  in
+
   let rec loop idx left_expr =
     let next_pri = get_priority (idx + 1) in
     if pri < next_pri then
@@ -219,6 +232,7 @@ and parse_expr toks idx pri =
   in
 
   let left_expr, last_idx = parse_prefix () in
+  let left_expr, last_idx = parse_suffix (last_idx + 1) left_expr in
   loop last_idx left_expr
 
 let parse toks =

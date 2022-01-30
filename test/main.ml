@@ -48,6 +48,8 @@ let run_parser_test () =
         ("infix times", "((55 * 21) * 33)", "55 * 21 * 33");
         ("prefix minus", "(10 * (-10))", "10 * -10");
         ("prefix not", "(((~true) <> 5) = 5)", "~true<>5=5");
+        ("suffix bang", "(10!)", "10!");
+        ("suffix bang 2", "(5 + ((6!) * (-7)))", "5 + 6! * -7");
         ("identifier", "((abc * x) + y)", "abc * x + y");
         ("if", "(if ((3 <> 5)) then (1) else (2))", "if (3 <> 5) {1} else {2}");
         ( "if nested",
@@ -79,6 +81,7 @@ let run_eval_test () =
           ("bool true", Bool true, "true");
           ("bool false", Bool false, "false");
           ("calc", Int ((10 * (2 + 4)) - 10), "10 * (2 + 4) - 10");
+          ("calc 2", Int 840, "5! + (2 + 4)!");
           ( "if",
             Bool (if 3 + 3 < 4 * 2 then not true else not false),
             "if (3 + 3 < 4 * 2) { ~true } else { ~false }" );
