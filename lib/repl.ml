@@ -7,13 +7,15 @@ let process_line line genv =
   if String.is_empty line then genv
   else
     try
-      let toks = Lexer.tokenize line in
-      let expr = Parser.parse toks in
-      let value = Evaluator.eval expr [] genv in
-      let _ = printf "%s\n" (V.to_string value) in
-      match value with V.Glet pair -> pair :: genv | _ -> genv
-    with _ ->
-      printf "Invalid Expr.\n";
+      match Lexer.tokenize line with
+      | Result.Error err -> raise (Error.to_exn err)
+      | Result.Ok toks -> (
+          let expr = Parser.parse toks in
+          let value = Evaluator.eval expr [] genv in
+          let _ = printf "%s\n" (V.to_string value) in
+          match value with V.Glet pair -> pair :: genv | _ -> genv)
+    with exn ->
+      printf "Invalid Expr (%s).\n" (Exn.to_string exn);
       genv
 
 let rec repl genv =

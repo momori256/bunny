@@ -1,91 +1,80 @@
 open Base
 module T = Token
 
-(* Whether a character is a number or not. *)
-let is_number ch = Char.('0' <= ch && ch <= '9')
+(* Start Tokizing from chs[idx], and return (Token.t, the last index of the token). *)
+let rec step chs idx acc =
+  let is_letter ch = Char.(('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ch = '_') in
+  let is_number ch = Char.('0' <= ch && ch <= '9') in
 
-(* Whether a character is a letter or not. *)
-let is_letter ch = Char.(('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ch = '_')
+  let single tok = Result.Ok (Some tok, idx) in
+  let double tok = Result.Ok (Some tok, idx + 1) in
+  let make_err str = Error (Error.of_string str) in
 
-(* Start Tokizing from str.[idx], and return (T.t, the last index of the Tok). *)
-let rec step str idx acc =
-  if String.length str <= idx then (Some T.Eof, idx)
-  else
-    let single tok = (Some tok, idx) in
-    let double tok = (Some tok, idx + 1) in
-
-    let make_integer s =
-      let num = Int.of_string s in
-      T.Int num
+  let make_tok_acc acc =
+    let make_int_tok s =
+      try
+        let num = Int.of_string s in
+        Ok (T.Int num)
+      with _ -> make_err (Printf.sprintf "Invalid number '%s'" s)
     in
-
-    let make_str_Tok = function
-      | "true" -> T.True
-      | "false" -> T.False
-      | "if" -> T.If
-      | "else" -> T.Else
-      | "fun" -> T.Fun
-      | "let" -> T.Let
-      | "in" -> T.In
-      | _ as s -> T.Ident s
+    let make_str_tok = function
+      | "true" -> Ok T.True
+      | "false" -> Ok T.False
+      | "if" -> Ok T.If
+      | "else" -> Ok T.Else
+      | "fun" -> Ok T.Fun
+      | "let" -> Ok T.Let
+      | "in" -> Ok T.In
+      | _ as s -> Ok (T.Ident s)
     in
+    let acc = List.rev acc in
+    match List.hd acc with
+    | Some ch when is_number ch -> make_int_tok (String.of_char_list acc)
+    | Some ch when is_letter ch -> make_str_tok (String.of_char_list acc)
+    | _ -> make_err "Internal error (accumulator is empty)."
+  in
 
-    let ch = str.[idx] in
-    if String.length str - 1 = idx then
-      (* Last index of str. *)
-      if is_number ch then single (make_integer (acc ^ Char.escaped ch))
-      else if is_letter ch then single (make_str_Tok (acc ^ Char.escaped ch))
-      else
-        match ch with
-        | '+' -> single T.Plus
-        | '-' -> single T.Minus
-        | '*' -> single T.Star
-        | '(' -> single T.Lparen
-        | ')' -> single T.Rparen
-        | '{' -> single T.Lbrace
-        | '}' -> single T.Rbrace
-        | '!' -> single T.Bang
-        | '=' -> single T.Equal
-        | '~' -> single T.Tilde
-        | ',' -> single T.Comma
-        | '>' -> single T.Greater
-        | '<' -> single T.Less
-        | ' ' -> (None, idx)
-        | _ -> failwith ""
-    else
-      (* Next character exists. *)
-      let next = str.[idx + 1] in
-      if is_number ch then
-        let next_acc = acc ^ Char.escaped ch in
-        if is_number next then step str (idx + 1) next_acc else single (make_integer next_acc)
-      else if is_letter ch then
-        let next_acc = acc ^ Char.escaped ch in
-        if is_letter next then step str (idx + 1) next_acc else single (make_str_Tok next_acc)
-      else
-        match (ch, next) with
-        | '+', _ -> single T.Plus
-        | '-', _ -> single T.Minus
-        | '*', _ -> single T.Star
-        | '(', _ -> single T.Lparen
-        | ')', _ -> single T.Rparen
-        | '{', _ -> single T.Lbrace
-        | '}', _ -> single T.Rbrace
-        | '!', _ -> single T.Bang
-        | '=', _ -> single T.Equal
-        | '~', _ -> single T.Tilde
-        | ',', _ -> single T.Comma
-        | '>', _ -> single T.Greater
-        | '<', '>' -> double T.Nequal
-        | '<', _ -> single T.Less
-        | ' ', _ -> (None, idx)
-        | (_ as c1), (_ as c2) -> failwith (Printf.sprintf "Unknown char '%c', '%c'" c1 c2)
+  match (List.nth chs idx, List.nth chs (idx + 1)) with
+  | None, _ -> single T.Eof
+  | Some ('+' as ch), _
+  | Some ('-' as ch), _
+  | Some ('*' as ch), _
+  | Some ('(' as ch), _
+  | Some (')' as ch), _
+  | Some ('{' as ch), _
+  | Some ('}' as ch), _
+  | Some ('!' as ch), _
+  | Some ('=' as ch), _
+  | Some ('~' as ch), _
+  | Some (',' as ch), _
+  | Some ('>' as ch), _ ->
+      single (T.of_char ch)
+  | Some '<', Some '>' -> double T.Nequal
+  | Some '<', _ -> single T.Less
+  | Some ' ', _ -> Result.Ok (None, idx) (* Skip whitespace. *)
+  (* Number or letter. *)
+  | Some ch1, Some ch2 when is_number ch2 || is_letter ch2 ->
+      step chs (idx + 1) (ch1 :: acc) (* Continue parsing. *)
+  | Some ch1, Some ch2 when T.is (String.of_char ch2) || Char.equal ch2 ' ' -> (
+      match make_tok_acc (ch1 :: acc) with
+      | Error _ as err -> err
+      | Ok tok -> single tok (* Complete parsing number or letter. *))
+  | Some ch1, None -> (
+      match make_tok_acc (ch1 :: acc) with
+      | Error _ as err -> err
+      | Ok tok -> single tok (* Complete parsing number or letter. *))
+  | Some (_ as ch), _ -> make_err (Printf.sprintf "Invalid character '%c'" ch)
 
 let tokenize str =
-  let rec sub idx =
-    let tok, last_idx = step str idx "" in
-    match tok with
-    | None -> sub (last_idx + 1) (* Ignore whitespace. *)
-    | Some T.Eof -> []
-    | Some tok -> tok :: sub (last_idx + 1)
+  let chs = String.to_list str in
+  let rec sub idx acc =
+    match step chs idx [] with
+    | Result.Ok (None, idx) -> sub (idx + 1) acc
+    | Result.Ok (Some T.Eof, _) -> Result.Ok (List.rev acc)
+    | Result.Ok (Some tok, idx) -> sub (idx + 1) (tok :: acc)
+    | Result.Error _ as err -> err
   in
-  sub 0
+  sub 0 []
+
+let tokenize_exn str =
+  match tokenize str with Result.Ok toks -> toks | Result.Error s -> raise (Error.to_exn s)

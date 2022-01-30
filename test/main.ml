@@ -22,25 +22,30 @@ let run_example_test () =
 let run_lexer_test () =
   let open Token in
   let lexer_test =
-    Test.make ~name:"lexer test" ~equal:(List.equal equal) ~f:Lexer.tokenize
+    Test.make ~name:"lexer test"
+      ~equal:(fun r1 r2 ->
+        Result.equal (fun ok1 ok2 -> List.equal Token.equal ok1 ok2) (fun _ _ -> false) r1 r2)
+      ~f:Lexer.tokenize
       [
         ( "single",
-          [ Plus; Minus; Star; Lparen; Rparen; Lbrace; Rbrace; Bang; Equal; Less; Tilde ],
+          Ok [ Plus; Minus; Star; Lparen; Rparen; Lbrace; Rbrace; Bang; Equal; Less; Tilde ],
           "+-*(){}!=<~" );
-        ("double", [ Nequal; Comma; Greater; Less ], "<>,><");
-        ("special", [ True; False; If; Else; Fun; Let; In ], "true false if else fun let in");
-        ("int", [ Int 10; Minus; Int 91 ], "10 -91");
-        ("identifier", [ Ident "x"; Nequal; Ident "abc" ], "x<>abc");
+        ("double", Ok [ Nequal; Comma; Greater; Less ], "<>,><");
+        ("special", Ok [ True; False; If; Else; Fun; Let; In ], "true false if else fun let in");
+        ("int", Ok [ Int 10; Minus; Int 91 ], "10 -91");
+        ("identifier", Ok [ Ident "x"; Nequal; Ident "abc"; Equal; Ident "y1" ], "x<>abc=y1");
       ]
   in
   Test.run_and_print lexer_test ~to_string:(fun toks ->
-      String.concat (List.map toks ~f:to_string) ~sep:", ")
+      match toks with
+      | Ok toks -> String.concat (List.map toks ~f:to_string) ~sep:", "
+      | Error err -> Error.to_string_hum err)
 
 (* Parser test. *)
 let run_parser_test () =
   let parser_test =
     Test.make ~name:"parser test" ~equal:String.equal
-      ~f:(fun s -> Parser.parse_string (Lexer.tokenize s))
+      ~f:(fun s -> Parser.parse_string (Lexer.tokenize_exn s))
       [
         ("int", "12", "12");
         ("infix plus", "(55 + 21)", "55 + 21");
@@ -50,7 +55,7 @@ let run_parser_test () =
         ("prefix not", "(((~true) <> 5) = 5)", "~true<>5=5");
         ("suffix bang", "(10!)", "10!");
         ("suffix bang 2", "(5 + ((6!) * (-7)))", "5 + 6! * -7");
-        ("identifier", "((abc * x) + y)", "abc * x + y");
+        ("identifier", "((abc * x) + y1)", "abc * x + y1");
         ("if", "(if ((3 <> 5)) then (1) else (2))", "if (3 <> 5) {1} else {2}");
         ( "if nested",
           "(if (true) then ((if (false) then (1) else (2))) else (3))",
@@ -74,7 +79,7 @@ let run_parser_test () =
 let run_eval_test () =
   let eval_test =
     Test.make ~name:"eval test" ~equal:Value.equal
-      ~f:(fun s -> Evaluator.eval (Parser.parse (Lexer.tokenize s)) [] [])
+      ~f:(fun s -> Evaluator.eval (Parser.parse (Lexer.tokenize_exn s)) [] [])
       Value.
         [
           ("int", Int 10, "10");
@@ -89,16 +94,17 @@ let run_eval_test () =
             Int (if 3 < 4 then if true then 1 else 2 else if false then 3 else 4),
             "if (3 < 4) { if (true) {1} else {2} } else { if (false) {3} else {4} }" );
           ( "fun",
-            Fun (Parser.parse (Lexer.tokenize "fun (x, abc) { if (x) {abc + 1} else {abc - 1}}")),
+            Fun
+              (Parser.parse (Lexer.tokenize_exn "fun (x, abc) { if (x) {abc + 1} else {abc - 1}}")),
             "fun (x, abc) { if (x) {abc + 1} else {abc - 1}}" );
           ("let", Int 10, "let x = 2 in x + 8");
           ( "let nested",
             Int
-              (let x = 3 in
-               let y = 1 in
-               let z = 4 in
-               x + y + z),
-            "let x = 3 in let y = 1 in let z = 4 in x + y + z" );
+              (let x1 = 3 in
+               let x2 = 1 in
+               let x3 = 4 in
+               x1 + x2 + x3),
+            "let x1 = 3 in let x2 = 1 in let x3 = 4 in x1 + x2 + x3" );
           ("call 1", Int ((fun x -> x * x * x) (-10 + 2)), "fun (x) { x * x * x } (-10 + 2)");
           ( "call 2",
             Bool
@@ -128,5 +134,6 @@ let () =
     let _ = List.map pairs ~f:(fun (name, f) -> Hashtbl.add tests ~key:name ~data:f) in
 
     (* Run tests. *)
-    List.fold args ~init:() ~f:(fun _ test ->
-        match Hashtbl.find tests test with None -> () | Some f -> f ())
+    List.dedup_and_sort args ~compare:(fun name1 name2 -> String.compare name1 name2)
+    |> List.fold ~init:() ~f:(fun _ test ->
+           match Hashtbl.find tests test with None -> () | Some f -> f ())
